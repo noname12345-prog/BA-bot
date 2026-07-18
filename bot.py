@@ -181,7 +181,7 @@ async def dm_congrats(member: discord.Member) -> tuple[bool, str]:
         title="🎖️ Thank you for purchasing HM-T Expansion Pack!",
         description=(
             "You have bought **His Majesty's Treasurer Expansion Pack)** status.\n\n"
-            "Thank you for your support and contribution — it's genuinely appreciated."
+            "Thank you for your support and contribution - it's genuinely appreciated."
         ),
         color=discord.Color.gold(),
     )
@@ -379,10 +379,10 @@ async def awardhmtexpansion_slash(
         )
         return
 
-    await interaction.response.defer(thinking=True)
+    await interaction.response.defer(thinking=True, ephemeral=True)
 
     async def reply(text: str):
-        await interaction.followup.send(text)
+        await interaction.followup.send(text, ephemeral=True)
 
     await run_award_flow(
         guild=interaction.guild, roblox_username=roblox_username, reply=reply
