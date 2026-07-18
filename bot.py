@@ -180,7 +180,7 @@ async def dm_congrats(member: discord.Member) -> tuple[bool, str]:
     embed = discord.Embed(
         title="🎖️ Thank you for purchasing HM-T Expansion Pack!",
         description=(
-            "You have bought **His Majesty's Treasurer Expansion Pack)** status.\n\n"
+            "You have bought **His Majesty's Treasurer Expansion Pack** status.\n\n"
             "Thank you for your support and contribution - it's genuinely appreciated."
         ),
         color=discord.Color.gold(),
