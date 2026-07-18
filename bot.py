@@ -177,13 +177,16 @@ async def set_hmt_plus_datastore(
 
 async def dm_congrats(member: discord.Member) -> tuple[bool, str]:
     """DM the member congratulating them on HMT+."""
-    message = (
-        "Congratulations! 🎖️\n\n"
-        "You've been awarded **His Majesty's Treasurer (HMT+)** status. "
-        "Thank you for your support and contribution — it's genuinely appreciated."
+    embed = discord.Embed(
+        title="🎖️ Thank you for purchasing HM-T Expansion Pack!",
+        description=(
+            "You have bought **His Majesty's Treasurer Expansion Pack)** status.\n\n"
+            "Thank you for your support and contribution — it's genuinely appreciated."
+        ),
+        color=discord.Color.gold(),
     )
     try:
-        await member.send(message)
+        await member.send(embed=embed)
         return True, "OK"
     except discord.Forbidden:
         return False, "DMs are closed for this user."
@@ -427,6 +430,12 @@ def run_health_server():
 @bot.event
 async def on_ready():
     log.info("Logged in as %s (%s)", bot.user, bot.user.id)
+
+    await bot.change_presence(
+        activity=discord.CustomActivity(name="Controlling the army!"),
+        status=discord.Status.online,
+    )
+
     try:
         synced = await bot.tree.sync()
         log.info("Synced %d slash command(s).", len(synced))
