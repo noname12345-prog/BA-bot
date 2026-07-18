@@ -29,6 +29,9 @@ from discord import app_commands
 from discord.ext import commands
 from dotenv import load_dotenv
 
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
+
 load_dotenv()
 
 logging.basicConfig(
@@ -406,6 +409,16 @@ async def awardhmtexpansion_prefix(ctx: commands.Context, roblox_username: str =
 
     await run_award_flow(guild=ctx.guild, roblox_username=roblox_username, reply=reply)
 
+class Health(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+    def log_message(self, *args):
+        pass  # silence request logging
+
+def run_health_server():
+    port = int(os.environ.get("PORT", 8000))
+    HTTPServer(("0.0.0.0", port), Health).serve_forever()
 
 # ---------------------------------------------------------------------------
 # Startup
@@ -422,4 +435,5 @@ async def on_ready():
 
 
 if __name__ == "__main__":
+    threading.Thread(target=run_health_server, daemon=True).start()
     bot.run(DISCORD_TOKEN)
