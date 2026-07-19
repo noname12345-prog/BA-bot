@@ -204,7 +204,7 @@ async def dm_congrats(member: discord.Member, hmt_option: int) -> tuple[bool, st
     embed = discord.Embed(
         title="🎖️ Thank you for purchasing HM-T Expansion Pack!",
         description=(
-            "You have bought **His Majesty's Treasurer Expansion Pack** option "
+            "You have bought **His Majesty's Treasurer Expansion Pack** "
             f"({option_label}).\n\n"
             "Thank you for your support and contribution - it's genuinely appreciated."
         ),
