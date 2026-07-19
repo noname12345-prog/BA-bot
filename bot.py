@@ -291,7 +291,7 @@ async def run_award_flow(
         ok, msg = await set_hmt_plus_datastore(session, roblox_user_id, hmt_option)
         if ok:
             await reply(
-                f"✅ DataStore `{ROBLOX_DATASTORE_NAME}` updated: "
+                f"DataStore `{ROBLOX_DATASTORE_NAME}` updated: "
                 f"user `{roblox_user_id}` ({roblox_username}) → `HMT+ = {hmt_option}`."
             )
         else:
@@ -302,7 +302,7 @@ async def run_award_flow(
         if member is not None:
             dm_ok, dm_msg = await dm_congrats(member, hmt_option)
             if dm_ok:
-                await reply(f"✅ DM sent to {member.mention}.")
+                await reply(f"DM sent to {member.mention}.")
             else:
                 await reply(f"⚠️ DataStore updated, but DM failed: {dm_msg}")
 
