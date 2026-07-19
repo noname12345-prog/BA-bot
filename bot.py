@@ -2,13 +2,15 @@
 HMT+ Award Bot
 --------------
 Discord bot that:
-  1. Takes a Roblox username (via /awardhmtexpansion or ?awardhmtexpansion)
+  1. Takes a Roblox username and an HM-T option number 1-5
+     (via /awardhmtexpansion or ?awardhmtexpansion)
   2. Finds the matching Discord member in the server (trimming clan tags
      like "[OF-1] " from their display name)
   3. Looks up the Roblox user ID for that username via Roblox's public API
-  4. Writes HMT+ = true for that user ID to a Roblox DataStore via
-     Roblox Open Cloud
-  5. DMs the Discord member congratulating them
+  4. Writes HMT+ = <option number> for that user ID to a Roblox DataStore
+     via Roblox Open Cloud
+  5. DMs the Discord member congratulating them, mentioning which option
+     they purchased
 
 If no Discord member match is found, the bot DMs the configured
 "resolver" (you) and asks you to specify who it is, then waits for
@@ -28,9 +30,6 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from dotenv import load_dotenv
-
-import threading
-from http.server import HTTPServer, BaseHTTPRequestHandler
 
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -71,6 +70,17 @@ ROBLOX_OPEN_CLOUD_DATASTORE_API = (
     "https://apis.roblox.com/datastores/v1/universes/{universe_id}/standard-datastores"
     "/datastore/entries/entry"
 )
+
+# Valid HM-T option numbers and how each is described in the congrats DM.
+HMT_OPTION_LABELS = {
+    1: "Option 1",
+    2: "Option 2",
+    3: "Option 3",
+    4: "Option 4",
+    5: "Option 5",
+}
+MIN_HMT_OPTION = min(HMT_OPTION_LABELS)
+MAX_HMT_OPTION = max(HMT_OPTION_LABELS)
 
 # ---------------------------------------------------------------------------
 # Discord setup
@@ -137,6 +147,16 @@ def find_matching_member(
     return matches
 
 
+def validate_hmt_option(option: int) -> Optional[str]:
+    """Return an error message if the option is invalid, else None."""
+    if option < MIN_HMT_OPTION or option > MAX_HMT_OPTION:
+        return (
+            f"Invalid HM-T option `{option}`. Must be a whole number between "
+            f"{MIN_HMT_OPTION} and {MAX_HMT_OPTION}."
+        )
+    return None
+
+
 async def get_roblox_user_id(session: aiohttp.ClientSession, username: str) -> Optional[int]:
     """Resolve a Roblox username to a numeric user ID."""
     payload = {"usernames": [username], "excludeBannedUsers": False}
@@ -152,11 +172,11 @@ async def get_roblox_user_id(session: aiohttp.ClientSession, username: str) -> O
 
 
 async def set_hmt_plus_datastore(
-    session: aiohttp.ClientSession, roblox_user_id: int
+    session: aiohttp.ClientSession, roblox_user_id: int, hmt_option: int
 ) -> tuple[bool, str]:
     """
-    Write HMT+ = true for the given Roblox user ID via Roblox Open Cloud
-    Standard DataStore API.
+    Write HMT+ = <hmt_option> for the given Roblox user ID via Roblox Open
+    Cloud Standard DataStore API.
 
     Returns (success, message).
     """
@@ -170,7 +190,7 @@ async def set_hmt_plus_datastore(
         "Content-Type": "application/json",
     }
 
-    async with session.post(url, params=params, headers=headers, json=True) as resp:
+    async with session.post(url, params=params, headers=headers, json=hmt_option) as resp:
         text = await resp.text()
         if resp.status in (200, 201):
             return True, "OK"
@@ -178,12 +198,14 @@ async def set_hmt_plus_datastore(
         return False, f"HTTP {resp.status}: {text}"
 
 
-async def dm_congrats(member: discord.Member) -> tuple[bool, str]:
-    """DM the member congratulating them on HMT+."""
+async def dm_congrats(member: discord.Member, hmt_option: int) -> tuple[bool, str]:
+    """DM the member congratulating them on HMT+, noting which option they bought."""
+    option_label = HMT_OPTION_LABELS.get(hmt_option, f"Option {hmt_option}")
     embed = discord.Embed(
         title="🎖️ Thank you for purchasing HM-T Expansion Pack!",
         description=(
-            "You have bought **His Majesty's Treasurer Expansion Pack** status.\n\n"
+            "You have bought **His Majesty's Treasurer Expansion Pack** option "
+            f"({option_label}).\n\n"
             "Thank you for your support and contribution - it's genuinely appreciated."
         ),
         color=discord.Color.gold(),
@@ -216,12 +238,18 @@ async def run_award_flow(
     *,
     guild: discord.Guild,
     roblox_username: str,
+    hmt_option: int,
     reply: "callable",  # async fn(str) -> sends a status message to the invoker
 ):
     """
     reply() is called at each step so both the slash command and the
     prefix command can surface progress the same way.
     """
+    error = validate_hmt_option(hmt_option)
+    if error:
+        await reply(error)
+        return
+
     async with aiohttp.ClientSession() as session:
         # 1. Find the Discord member.
         matches = find_matching_member(guild, roblox_username)
@@ -260,11 +288,11 @@ async def run_award_flow(
             return
 
         # 3. Write to DataStore.
-        ok, msg = await set_hmt_plus_datastore(session, roblox_user_id)
+        ok, msg = await set_hmt_plus_datastore(session, roblox_user_id, hmt_option)
         if ok:
             await reply(
                 f"✅ DataStore `{ROBLOX_DATASTORE_NAME}` updated: "
-                f"user `{roblox_user_id}` ({roblox_username}) → `HMT+ = true`."
+                f"user `{roblox_user_id}` ({roblox_username}) → `HMT+ = {hmt_option}`."
             )
         else:
             await reply(f"❌ Failed to update DataStore: {msg}")
@@ -272,7 +300,7 @@ async def run_award_flow(
 
         # 4. DM the member, if we have one.
         if member is not None:
-            dm_ok, dm_msg = await dm_congrats(member)
+            dm_ok, dm_msg = await dm_congrats(member, hmt_option)
             if dm_ok:
                 await reply(f"✅ DM sent to {member.mention}.")
             else:
@@ -366,9 +394,20 @@ async def parse_member_reference(
     name="awardhmtexpansion",
     description="Award HMT+ to a player by Roblox username.",
 )
-@app_commands.describe(roblox_username="The player's Roblox username")
+@app_commands.describe(
+    roblox_username="The player's Roblox username",
+    hmt_option="Which HM-T option they purchased (1-5)",
+)
+@app_commands.choices(
+    hmt_option=[
+        app_commands.Choice(name=label, value=number)
+        for number, label in HMT_OPTION_LABELS.items()
+    ]
+)
 async def awardhmtexpansion_slash(
-    interaction: discord.Interaction, roblox_username: str
+    interaction: discord.Interaction,
+    roblox_username: str,
+    hmt_option: app_commands.Choice[int],
 ):
     if interaction.user.id not in AUTHORIZED_USER_IDS:
         await interaction.response.send_message(
@@ -388,22 +427,33 @@ async def awardhmtexpansion_slash(
         await interaction.followup.send(text, ephemeral=True)
 
     await run_award_flow(
-        guild=interaction.guild, roblox_username=roblox_username, reply=reply
+        guild=interaction.guild,
+        roblox_username=roblox_username,
+        hmt_option=hmt_option.value,
+        reply=reply,
     )
 
 
 # ---------------------------------------------------------------------------
-# Prefix command: ?awardhmtexpansion <username>
+# Prefix command: ?awardhmtexpansion <username> <option>
 # ---------------------------------------------------------------------------
 
 @bot.command(name="awardhmtexpansion")
-async def awardhmtexpansion_prefix(ctx: commands.Context, roblox_username: str = None):
+async def awardhmtexpansion_prefix(
+    ctx: commands.Context,
+    roblox_username: str = None,
+    hmt_option: int = None,
+):
     if ctx.author.id not in AUTHORIZED_USER_IDS:
         await ctx.reply("You're not authorized to use this command.")
         return
 
-    if roblox_username is None:
-        await ctx.reply("Usage: `?awardhmtexpansion <roblox_username>`")
+    if roblox_username is None or hmt_option is None:
+        options = ", ".join(str(n) for n in HMT_OPTION_LABELS)
+        await ctx.reply(
+            f"Usage: `?awardhmtexpansion <roblox_username> <hmt_option>`\n"
+            f"`hmt_option` must be one of: {options}"
+        )
         return
 
     if ctx.guild is None:
@@ -413,21 +463,16 @@ async def awardhmtexpansion_prefix(ctx: commands.Context, roblox_username: str =
     async def reply(text: str):
         await ctx.reply(text)
 
-    await run_award_flow(guild=ctx.guild, roblox_username=roblox_username, reply=reply)
+    await run_award_flow(
+        guild=ctx.guild,
+        roblox_username=roblox_username,
+        hmt_option=hmt_option,
+        reply=reply,
+    )
 
-class Health(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-    def log_message(self, *args):
-        pass  # silence request logging
-
-def run_health_server():
-    port = int(os.environ.get("PORT", 8000))
-    HTTPServer(("0.0.0.0", port), Health).serve_forever()
 
 # ---------------------------------------------------------------------------
-# Startup
+# Health check server (for hosting platforms that expect an open port)
 # ---------------------------------------------------------------------------
 
 class Health(BaseHTTPRequestHandler):
@@ -440,11 +485,17 @@ class Health(BaseHTTPRequestHandler):
         self.end_headers()
 
     def log_message(self, *args):
-        pass
+        pass  # silence request logging
+
 
 def run_health_server():
     port = int(os.environ.get("PORT", 8000))
     HTTPServer(("0.0.0.0", port), Health).serve_forever()
+
+
+# ---------------------------------------------------------------------------
+# Startup
+# ---------------------------------------------------------------------------
 
 @bot.event
 async def on_ready():
